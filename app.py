@@ -31,10 +31,10 @@ def main():
         rg_t2 = "./rg_t2"
         
         st.subheader("Processando Cartões")
-        process_images(cartao, model, ocr_card, show_image=False)
+        process_images(cartao, model, ocr_card)
 
         st.subheader("Processando CNHs")
-        process_images(cnh, model, extract_cnh, limiar_conf=0, show_image=False)
+        process_images(cnh, model, extract_cnh, limiar_conf=0)
         
         st.subheader("Processando RG Tipo 1")
         if any(os.scandir(rg_t1)):
@@ -50,11 +50,11 @@ def main():
                 else:
                     st.write(f"**Processando arquivo:** {files[i]} ...")
                 
-                data = extract_rg_novo(model, file1, file2, limiar_conf=0, show_image=False)
+                data = extract_rg_novo(model, file1, file2, limiar_conf=0)
                 st.json(data)
         
         st.subheader("Processando RG Tipo 2")
-        process_images(rg_t2, model, extract_rg_antigo, limiar_conf=0, show_image=False)
+        process_images(rg_t2, model, extract_rg_antigo, limiar_conf=0)
         
         st.success("Processamento concluído!")
 
