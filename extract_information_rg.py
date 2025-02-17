@@ -6,48 +6,6 @@ from auxiliary_functions import calculate_base_angle, average_angles_boxes, rota
 from config_run_model import run_ocr
 
 
-# Funções para organizar o OCR por linha
-def extract_y_center(geometry):
-    top_y = min(coord[1] for coord in geometry)
-    bottom_y = max(coord[1] for coord in geometry)
-    return (top_y + bottom_y) / 2
-
-
-def group_words_by_lines(words_data, tolerance=0.01):
-    # Adiciona o centro Y para cada palavra
-    for word in words_data:
-        word["y_center"] = extract_y_center(word["geometry"])
-
-    # Ordena as palavras pelo centro Y (de cima para baixo)
-    words_data.sort(key=lambda w: w["y_center"])
-
-    lines = []
-    current_line = []
-    last_y = None
-
-    for word in words_data:
-        if last_y is None or abs(word["y_center"] - last_y) <= tolerance:
-            # Adiciona à linha atual
-            current_line.append(word)
-        else:
-            # Nova linha detectada
-            lines.append(current_line)
-            current_line = [word]
-        last_y = word["y_center"]
-
-    # Adiciona a última linha se necessário
-    if current_line:
-        lines.append(current_line)
-
-    # Ordena as palavras de cada linha pelo eixo X (esquerda para a direita)
-    for line in lines:
-        line.sort(key=lambda w: min(coord[0] for coord in w["geometry"]))
-
-    # Converte as linhas agrupadas em uma lista de strings
-    list_lines = [' '.join(word['text'] for word in line) for line in lines]
-
-    return list_lines
-
 
 # Funções utilizadas para extrair informações do texto de ambos os tipos de RG
 #############################################################################
@@ -56,6 +14,7 @@ def group_words_by_lines(words_data, tolerance=0.01):
 def pipeline_ocr(model, image_path, limiar_conf=0.5, show_image=False, debug=False):
 
     result = run_ocr(model, image_path, show_image)
+    meta_data = result
 
     # Obter a inclinação dos retângulos com mais de 4 caracteres
     angle_list = []
@@ -67,9 +26,13 @@ def pipeline_ocr(model, image_path, limiar_conf=0.5, show_image=False, debug=Fal
                 # Excluir valores discrepantes
                 if -10 < angle < 10:
                     angle_list.append(angle)
-
-    # Função que ordena e calcula a média dos quatro ângulos centrais da lista
-    mean_angle = average_angles_boxes(angle_list)
+    
+    if len(angle_list) > 0:
+        # Função que ordena e calcula a média dos quatro ângulos centrais da lista
+        mean_angle = average_angles_boxes(angle_list)
+    else:
+        mean_angle = 0
+    
 
     if mean_angle > 1 or mean_angle < -1:
         # Ajusta inclinação da imagem
@@ -107,7 +70,7 @@ def pipeline_ocr(model, image_path, limiar_conf=0.5, show_image=False, debug=Fal
         for i, line_text in enumerate(lines):
             print(f"Linha {i + 1}: {line_text}")
 
-    return lines
+    return lines, meta_data
 
 
 # Função para extrair informações do text do RG antigo
@@ -251,7 +214,7 @@ def extract_dt_nasc_antigo(ocr_output):
 def extract_rg_antigo(model, path_verso, limiar_conf=0.5, show_image=False, debug=False):
     try:
         # Chama a função e obtém o resultado
-        lines = pipeline_ocr(
+        lines, meta_data = pipeline_ocr(
             model, path_verso, limiar_conf=limiar_conf, show_image=show_image, debug=debug)
         # Extrai as informações
         rg = extract_num_rg_antigo(lines)
@@ -278,7 +241,7 @@ def extract_rg_antigo(model, path_verso, limiar_conf=0.5, show_image=False, debu
         "CPF": cpf,
         "Data de Nascimento": dt_nasc
     }
-    return dados
+    return dados, meta_data
 
 
 # Funções utilizadas para extrair informações do texto do novo RG
@@ -400,12 +363,11 @@ def extract_dt_expedicao(ocr_output):
 
     return None  # Retorna None se nenhum RG for encontrado
 
+
 # Pipeline para extrair informações do RG novo
-
-
 def extract_rg_novo(model, path_frente, path_verso, limiar_conf=0.5, show_image=False, debug=False):
     try:
-        result = pipeline_ocr(model, path_frente, limiar_conf,
+        result, meta_data_f = pipeline_ocr(model, path_frente, limiar_conf,
                               show_image=show_image, debug=debug)
         nome = extract_name(result)
         filiacao = extract_filiation(result)
@@ -418,7 +380,7 @@ def extract_rg_novo(model, path_frente, path_verso, limiar_conf=0.5, show_image=
         dt_nasc = None
 
     try:
-        result_v = pipeline_ocr(
+        result_v, meta_data_v = pipeline_ocr(
             model, path_verso, limiar_conf, show_image=show_image, debug=debug)
         cpf, rg = extract_cpf(result_v)
         if rg is None:
@@ -439,4 +401,4 @@ def extract_rg_novo(model, path_frente, path_verso, limiar_conf=0.5, show_image=
         "CPF": cpf,
         "Data de Nascimento": dt_nasc
     }
-    return dados
+    return dados, meta_data_f, meta_data_v
