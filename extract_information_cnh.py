@@ -12,6 +12,7 @@ from config_run_model import run_ocr
 def pipeline_ocr(model, image_path, limiar_conf=0.5, show_image=False, debug=False):
 
     result = run_ocr(model, image_path, show_image)
+    meta_data = result
 
     # Obter a inclinação dos retângulos com mais de 4 caracteres
     angle_list = []
@@ -23,9 +24,12 @@ def pipeline_ocr(model, image_path, limiar_conf=0.5, show_image=False, debug=Fal
                 # Excluir valores discrepantes
                 if -10 < angle < 10:
                     angle_list.append(angle)
-
-    # Função que ordena e calcula a média dos quatro ângulos centrais da lista
-    mean_angle = average_angles_boxes(angle_list)
+                    
+    if len(angle_list) > 0:
+        # Função que ordena e calcula a média dos quatro ângulos centrais da lista
+        mean_angle = average_angles_boxes(angle_list)
+    else:
+        mean_angle = 0
 
     if mean_angle > 1 or mean_angle < -1:
         # Ajusta inclinação da imagem
@@ -63,7 +67,7 @@ def pipeline_ocr(model, image_path, limiar_conf=0.5, show_image=False, debug=Fal
         for i, line_text in enumerate(lines):
             print(f"Linha {i + 1}: {line_text}")
 
-    return lines
+    return lines, meta_data
 
 
 
@@ -166,7 +170,7 @@ def extract_cnh_dates(ocr_output):
 
 def extract_cnh(model, path, limiar_conf=0.5, show_image=False, debug=False):
     try:
-        result = pipeline_ocr(model, path, limiar_conf,
+        result, meta_data = pipeline_ocr(model, path, limiar_conf,
                               show_image=show_image, debug=debug)
         nome = extract_name(result)
         filiacao = extract_filiation(result)
@@ -198,4 +202,4 @@ def extract_cnh(model, path, limiar_conf=0.5, show_image=False, debug=False):
         "Validade": validade,
         "Primeira CNH": primeira_cnh
     }
-    return dados
+    return dados, meta_data
