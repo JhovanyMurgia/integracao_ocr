@@ -8,6 +8,8 @@ from config_run_model import run_ocr
 def pipeline_ocr_card(model, image_path, show_image=False):
     result = run_ocr(model, image_path, show_image)
 
+    meta_data = result
+
     # Obter a inclinação dos retângulos com mais de 4 caracteres
     angle_list = []
     for block in result.pages[0].blocks:
@@ -19,8 +21,11 @@ def pipeline_ocr_card(model, image_path, show_image=False):
                 if -5 < angle < 5:
                     angle_list.append(angle)
 
-    # Função que ordena e calcula a média dos quatro ângulos centrais da lista
-    mean_angle = average_angles_boxes(angle_list)
+    if len(angle_list) > 0:
+        # Função que ordena e calcula a média dos quatro ângulos centrais da lista
+        mean_angle = average_angles_boxes(angle_list)
+    else:
+        mean_angle = 0
 
     if mean_angle > 1 or mean_angle < -1:
         # Ajusta inclinação da imagem
@@ -51,13 +56,18 @@ def pipeline_ocr_card(model, image_path, show_image=False):
     # Agrupa as palavras em linhas
     lines = group_words_by_lines(words_data)
 
-    return lines
+    return lines, meta_data
 
 
 # Funções para separar as entidades no OCR
 # Tipo 1 - cartão mais comum
 def regex_card_type_1(lines):
-    extracted_data = []
+    extracted_data = {
+        "Nome": None,
+        "Data de Nascimento": None,
+        "Sexo": None,
+        "Numero do Cartao": None
+    }
 
     for i, line in enumerate(lines):
         # Remover caracteres especiais e limpar espaços extras
@@ -91,18 +101,23 @@ def regex_card_type_1(lines):
                 j -= 1  # Continua subindo
 
             # Adiciona os dados extraídos à lista
-            extracted_data.append({
-                "name": name,
-                "birth_date": birth_date,
-                "gender": gender,
-                "registration": registration
-            })
+            extracted_data = {
+                "Nome": name,
+                "Data de Nascimento": birth_date,
+                "Sexo": gender,
+                "Numero do Cartao": registration
+            }
 
     return extracted_data
 
 # Cartão tipo 2 - sem data de nascimento e sexo
 def regex_card_type_2(lines):
-    extracted_data = []
+    extracted_data = {
+        "Nome": None,
+        "Data de Nascimento": None,
+        "Sexo": None,
+        "Numero do Cartao": None
+    }
 
     for i, line in enumerate(lines):
         # Tenta encontrar o número de matrícula
@@ -122,19 +137,21 @@ def regex_card_type_2(lines):
                 name = None
 
             # Adiciona as informações extraídas
-            extracted_data.append({
-                "name": name,
-                "birth_date": birth_date,
-                "gender": gender,
-                "registration": registration
-            })
+            extracted_data = {
+                "Nome": name,
+                "Data de Nascimento": birth_date,
+                "Sexo": gender,
+                "Numero do Cartao": registration
+            }
 
     return extracted_data
 
 def ocr_card(model, image_path, show_image=False):
 #
-    lines = pipeline_ocr_card(model, image_path, show_image=show_image)
+    lines, meta_data = pipeline_ocr_card(model, image_path, show_image=show_image)
     # Separação das entidades
-    result = regex_card_type_1(lines) or regex_card_type_2(lines)
+    result = regex_card_type_1(lines) 
+    if result["Numero do Cartao"] is None:
+        result = regex_card_type_2(lines)
     
-    return result
+    return result, meta_data
